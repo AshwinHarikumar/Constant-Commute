@@ -10,7 +10,7 @@ const Container = styled.div`
 
 const LeftSection = styled.div`
   width: 90%; /* Reduced width */
-  background: url('https://ssetv4.linways.com//libcommon/images/college/SSET/student.jpg') center/cover no-repeat;
+  background: url('https://scmsgroup.org/sset/wp-content/uploads/2024/02/sset-1.webp') center/cover no-repeat;
 
   @media (max-width: 768px) {
     display: none;
