@@ -318,27 +318,29 @@ const StudentDashboard = ({ onLogout }) => {
             )}
           </StyledCard>
         </Grid>
-        <Grid item>
-          <StyledCard onClick={() => setBusStopsDialogOpen(true)} style={{ cursor: 'pointer' }}>
-            <Typography variant="h6">Bus Stops</Typography>
-            {busStops.length > 0 ? (
-              <>
-                {busStops.slice(0, 3).map((stop, index) => (
-                  <Typography key={stop.id} variant="body2" style={{ marginTop: index === 0 ? '8px' : '4px' }}>
-                    {index + 1}. {stop.name}
-                  </Typography>
-                ))}
-                {busStops.length > 3 && (
-                  <Typography variant="body2" style={{ marginTop: '4px', fontStyle: 'italic' }}>
-                    View All
-                  </Typography>
-                )}
-              </>
-            ) : (
-              <Typography>No stops available.</Typography>
-            )}
-          </StyledCard>
-        </Grid>
+        {assignedBusNickname && (
+          <Grid item>
+            <StyledCard onClick={() => setBusStopsDialogOpen(true)} style={{ cursor: 'pointer' }}>
+              <Typography variant="h6">Bus Stops</Typography>
+              {busStops.length > 0 ? (
+                <>
+                  {busStops.slice(0, 3).map((stop, index) => (
+                    <Typography key={stop.id} variant="body2" style={{ marginTop: index === 0 ? '8px' : '4px' }}>
+                      {index + 1}. {stop.name}
+                    </Typography>
+                  ))}
+                  {busStops.length > 3 && (
+                    <Typography variant="body2" style={{ marginTop: '4px', fontStyle: 'italic' }}>
+                      View All
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Typography>No stops available.</Typography>
+              )}
+            </StyledCard>
+          </Grid>
+        )}
       </CardContainer>
 
       <Dialog 
