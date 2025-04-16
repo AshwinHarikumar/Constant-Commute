@@ -59,6 +59,7 @@ const StudentDashboard = ({ onLogout }) => {
   const [busStopsDialogOpen, setBusStopsDialogOpen] = useState(false); // new state for Bus Stops dialog
   const [selectedStopForMap, setSelectedStopForMap] = useState(null); // New state for displaying a selected stop on map
   const [userName, setUserName] = useState("Student");
+  const [assignedBusId, setAssignedBusId] = useState(null);
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: "AIzaSyDiiwr2ckCrgs7MRM5JT6qtRrQlWduVV5w"
@@ -121,6 +122,7 @@ const StudentDashboard = ({ onLogout }) => {
     }
 
     if (data.bus_id) {
+      setAssignedBusId(data.bus_id);
       const { data: busData, error: busError } = await supabase
         .from('bus_locations')
         .select('nickname, latitude, longitude')
@@ -134,6 +136,7 @@ const StudentDashboard = ({ onLogout }) => {
       setBusLocation({ latitude: busData.latitude, longitude: busData.longitude });
     } else {
       setAssignedBusNickname(null);
+      setAssignedBusId(null);
       setBusLocation(null);
     }
   };
@@ -211,7 +214,14 @@ const StudentDashboard = ({ onLogout }) => {
   useEffect(() => {
     const fetchBusStops = async () => {
       try {
-        const { data, error } = await supabase.from('bus_stops').select('*');
+        if (!assignedBusId) {
+          setBusStops([]);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('bus_stops')
+          .select('*')
+          .eq('bus_id', assignedBusId);
         if (error) throw error;
         setBusStops(data);
       } catch (error) {
@@ -219,7 +229,7 @@ const StudentDashboard = ({ onLogout }) => {
       }
     };
     fetchBusStops();
-  }, []);
+  }, [assignedBusId]);
 
   useEffect(() => {
     const fetchUserName = async () => {
@@ -256,6 +266,11 @@ const StudentDashboard = ({ onLogout }) => {
       supabase.removeChannel(notificationsChannel);
     };
   }, []);
+
+  const openBusDetails = (bus) => {
+    setSelectedStopForMap(bus);
+    fetchBusStopsForBus(bus.id);
+  };
 
   return (
     <Container>
@@ -319,28 +334,23 @@ const StudentDashboard = ({ onLogout }) => {
           </StyledCard>
         </Grid>
         {assignedBusNickname && (
-          <Grid item>
-            <StyledCard onClick={() => setBusStopsDialogOpen(true)} style={{ cursor: 'pointer' }}>
-              <Typography variant="h6">Bus Stops</Typography>
-              {busStops.length > 0 ? (
-                <>
-                  {busStops.slice(0, 3).map((stop, index) => (
-                    <Typography key={stop.id} variant="body2" style={{ marginTop: index === 0 ? '8px' : '4px' }}>
-                      {index + 1}. {stop.name}
-                    </Typography>
-                  ))}
-                  {busStops.length > 3 && (
-                    <Typography variant="body2" style={{ marginTop: '4px', fontStyle: 'italic' }}>
-                      View All
-                    </Typography>
-                  )}
-                </>
-              ) : (
-                <Typography>No stops available.</Typography>
-              )}
-            </StyledCard>
-          </Grid>
-        )}
+            <Grid item>
+              <StyledCard onClick={() => setBusStopsDialogOpen(true)} style={{ cursor: 'pointer' }}>
+                <Typography variant="h6">Bus Stops</Typography>
+                {busStops.length > 0 ? (
+                  busStops
+                    .slice(0, 3) // Show only the first 3 stops
+                    .map((stop, index) => (
+                      <Typography key={stop.id} variant="body2" style={{ marginTop: index === 0 ? '8px' : '4px' }}>
+                        {index + 1}. {stop.name}
+                      </Typography>
+                    ))
+                ) : (
+                  <Typography>No stops available.</Typography>
+                )}
+              </StyledCard>
+            </Grid>
+          )}
       </CardContainer>
 
       <Dialog 
@@ -406,16 +416,17 @@ const StudentDashboard = ({ onLogout }) => {
             Bus Stops
           </Typography>
           {busStops.length > 0 ? (
-            busStops.map((stop, index) => (
-              <div key={stop.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                <Typography style={{ flexGrow: 1 }}>
-                  {index + 1}. {stop.name} – {stop.stop_time}
-                </Typography>
-                <Button variant="outlined" size="small" onClick={() => { setSelectedStopForMap(stop); }}>
-                  View on Map
-                </Button>
-              </div>
-            ))
+            busStops
+              .map((stop, index) => (
+                <div key={stop.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                  <Typography style={{ flexGrow: 1 }}>
+                    {index + 1}. {stop.name} – {stop.stop_time}
+                  </Typography>
+                  <Button variant="outlined" size="small" onClick={() => { setSelectedStopForMap(stop); }}>
+                    View on Map
+                  </Button>
+                </div>
+              ))
           ) : (
             <Typography>No stops available.</Typography>
           )}
