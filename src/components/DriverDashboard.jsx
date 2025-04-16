@@ -1,7 +1,7 @@
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { AppBar, Button, Container, Dialog, DialogActions, DialogContent, Grid, IconButton, Paper, Toolbar, Typography } from '@mui/material';
 import { styled } from '@mui/system';
-import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import { DirectionsRenderer, GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
@@ -68,6 +68,8 @@ const DriverDashboard = ({ onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [userName, setUserName] = useState("Driver");
   const [viewMapDialogOpen, setViewMapDialogOpen] = useState(false);
+  const [directions, setDirections] = useState(null);
+  const destination = { lat: 10.269571779583082, lng: 76.40028590252011 };
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: "AIzaSyDiiwr2ckCrgs7MRM5JT6qtRrQlWduVV5w"
   });
@@ -183,6 +185,7 @@ const DriverDashboard = ({ onLogout }) => {
     }
   };
 
+  // Add computed center for bus stops map
   // Update bus status
   const updateBusStatus = async (status) => {
     try {
@@ -214,6 +217,70 @@ const DriverDashboard = ({ onLogout }) => {
       console.error("Failed to update bus status:", error.message);
     }
   };
+
+  // Function to plot navigation including bus stops as waypoints on the already open Bus Stops dialog
+  const plotNavigation = () => {
+    if (!busLocation) {
+      alert("Bus location not available.");
+      return;
+    }
+    const service = new window.google.maps.DirectionsService();
+    const waypoints = busStopsForBus.map(stop => ({
+      location: { lat: parseFloat(stop.latitude), lng: parseFloat(stop.longitude) },
+      stopover: true
+    }));
+    service.route({
+      origin: { lat: busLocation.latitude, lng: busLocation.longitude },
+      destination: destination,
+      waypoints: waypoints,
+      travelMode: window.google.maps.TravelMode.DRIVING
+    }, (result, status) => {
+      if (status === window.google.maps.DirectionsStatus.OK) {
+        setDirections(result);
+      } else {
+        console.error(`Failed to fetch directions: ${result}`);
+        alert("Failed to calculate route.");
+      }
+    });
+  };
+
+  // Clear the navigation route to show only bus stops markers.
+  const clearNavigation = () => {
+    setDirections(null);
+  };
+
+  // New: Function to plot driving route with traffic data
+  const plotDrivingRoute = () => {
+    if (!busLocation) {
+      alert("Bus location not available.");
+      return;
+    }
+    const service = new window.google.maps.DirectionsService();
+    service.route({
+      origin: { lat: busLocation.latitude, lng: busLocation.longitude },
+      destination: destination,
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      drivingOptions: {
+        departureTime: new Date(),
+        trafficModel: 'optimistic' // changed value
+      }
+    }, (result, status) => {
+      console.log("Driving route status:", status, result); // debug log
+      if (status === 'OK') {
+        setDirections(result);
+      } else {
+        console.error(`Failed to fetch driving directions: ${result}`);
+        alert("Failed to calculate driving route.");
+      }
+    });
+  };
+
+  // Compute center for bus stops or fallback to bus location.
+  const busStopsCenter = busStopsForBus.length > 0 
+    ? { lat: parseFloat(busStopsForBus[0].latitude), lng: parseFloat(busStopsForBus[0].longitude) }
+    : busLocation 
+      ? { lat: busLocation.latitude, lng: busLocation.longitude }
+      : { lat: 0, lng: 0 };
 
   return (
     <Container>
@@ -290,7 +357,7 @@ const DriverDashboard = ({ onLogout }) => {
         </Grid>
         <Grid item>
           <StyledCard onClick={() => { fetchBusStopsForBus(); setBusStopsDialogOpen(true); }} style={{ cursor: 'pointer' }}>
-            <Typography variant="h6">View Bus Stops</Typography>
+            <Typography variant="h6">View Bus Stops & Navigation</Typography>
           </StyledCard>
         </Grid>
       </CardContainer>
@@ -334,7 +401,7 @@ const DriverDashboard = ({ onLogout }) => {
 
       <Dialog
         open={busStopsDialogOpen}
-        onClose={() => setBusStopsDialogOpen(false)}
+        onClose={() => { setBusStopsDialogOpen(false); setDirections(null); }}
         fullWidth
         maxWidth="lg"
       >
@@ -342,18 +409,46 @@ const DriverDashboard = ({ onLogout }) => {
           <Typography variant="h5" style={{ marginBottom: '20px' }}>
             Bus Stops for Assigned Bus
           </Typography>
-          {busStopsForBus.length > 0 ? (
-            busStopsForBus.map((stop, index) => (
-              <Typography key={stop.id} style={{ marginBottom: '8px' }}>
-                {index + 1}. {stop.name} – {stop.stop_time} (Lat: {stop.latitude}, Lng: {stop.longitude})
-              </Typography>
-            ))
+          {/* If a driving route was computed (traffic-based), display its ETA */}
+          {directions && directions.routes[0].legs[0].duration_in_traffic && (
+            <Typography variant="h6" style={{ marginBottom: '10px' }}>
+              Estimated Time: {directions.routes[0].legs[0].duration_in_traffic.text}
+            </Typography>
+          )}
+          {isLoaded ? (
+            <GoogleMap
+              mapContainerStyle={{ height: '400px', width: '100%', margin: '20px 0' }}
+              center={busStopsCenter}
+              zoom={12}
+            >
+              {busStopsForBus.map(stop => (
+                <Marker
+                  key={stop.id}
+                  position={{ lat: parseFloat(stop.latitude), lng: parseFloat(stop.longitude) }}
+                />
+              ))}
+              {/* Overlay navigation if computed */}
+              {directions && <DirectionsRenderer directions={directions} />}
+            </GoogleMap>
           ) : (
-            <Typography>No stops found.</Typography>
+            <Typography>
+              {busStopsForBus.length === 0 ? "No stops found." : "Loading map..."}
+            </Typography>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setBusStopsDialogOpen(false)} color="primary">
+          <Button onClick={plotNavigation} color="primary">
+            Plot Navigation
+          </Button>
+          <Button onClick={plotDrivingRoute} color="primary">
+            Start Driving
+          </Button>
+          {directions && (
+            <Button onClick={clearNavigation} color="primary">
+              Clear Navigation
+            </Button>
+          )}
+          <Button onClick={() => { setBusStopsDialogOpen(false); setDirections(null); }} color="primary">
             Close
           </Button>
         </DialogActions>
