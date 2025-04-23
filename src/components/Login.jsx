@@ -110,7 +110,7 @@ const LoginPage = ({ setRole }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRoleInput] = useState('');
+  const [role, setRoleInput] = useState('student'); // Default role to 'student'
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -120,11 +120,33 @@ const LoginPage = ({ setRole }) => {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin, // Ensure the redirect URL matches your app's URL
+          redirectTo: window.location.origin,
         },
       });
 
       if (error) throw error;
+
+      // After Google login, insert/update profile with default role 'student'
+      // Wait for user to be authenticated
+      setTimeout(async () => {
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData?.user;
+        if (user && user.id) {
+          // Check if profile exists
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', user.id)
+            .single();
+          if (!profile) {
+            // Insert new profile with role 'student'
+            await supabase
+              .from('profiles')
+              .insert([{ id: user.id, email: user.email, name: user.user_metadata?.name || '', role: 'student' }]);
+          }
+        }
+      }, 2000);
+
       setRole(null); // Reset role for selection
     } catch (error) {
       console.error('Google login failed:', error.message);
@@ -215,6 +237,9 @@ const LoginPage = ({ setRole }) => {
                 onChange={(e) => setRoleInput(e.target.value)}
                 required
               />
+              {/* Optionally, you can hide the role input and use a hidden input instead:
+              <input type="hidden" value="student" /> 
+              */}
               <Input
                 type="email"
                 placeholder="Email"
